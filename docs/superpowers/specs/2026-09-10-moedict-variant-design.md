@@ -165,34 +165,59 @@ where moedict's choice is the *less* common spelling in real use.
 moedict writes erhua as a bare trailing `r` on the preceding syllable (`一會兒` →
 `yī huǐr`), which is not a syllable the parser knows. The rewrite splits it into its
 own neutral-tone `er` syllable, which also restores the one-syllable-per-character
-invariant that step 4 checks:
+invariant that step 4 checks.
+
+The rule operates on whitespace-separated tokens, not as a regex over the whole
+string:
 
 ```python
-MOEDICT_ERHUA_PATTERN = re.compile(r'(?<!e)r(?=\s|$)')
-# 'yī huǐr ' -> 'yī huǐ er5 ' -> [empty-i-1, h-ui-3, empty-er-5]
+MOEDICT_ER_SYLLABLES = {'er', 'ēr', 'ér', 'ěr', 'èr'}
+
+def moedict_rewrite_erhua(pinyin):
+    tokens = []
+    for token in pinyin.split(' '):
+        if token.endswith('r') and token not in MOEDICT_ER_SYLLABLES:
+            tokens.append(token[:-1])
+            tokens.append('er5')
+        else:
+            tokens.append(token)
+    return ' '.join(tokens)
 ```
 
-The `(?<!e)` lookbehind is load-bearing. Without it the legitimate syllable `èr`
-is also rewritten, corrupting entries such as `二碴兒`.
+Token-level comparison is required, and a character lookbehind cannot substitute for
+it. The ambiguity is between `èr`, which is the syllable *er* and must be left alone,
+and `zhèr`, `yèr`, `gér`, `juér`, which are erhua on a syllable ending in an e-vowel
+and must be split. Both have `r` preceded by an e-form vowel, so no lookbehind can
+separate them — only "is this whole token an er-syllable?" can. A naive `(?<!e)`
+additionally fails to protect `èr` at all, since `è` is U+00E8 and not `e`.
 
-This recovers 1,632 of the 1,647 parse failures.
+This recovers all 1,641 erhua entries.
 
 ### Expected yield
 
-| Outcome | Count |
+These are the exact counter keys `parse_moedict` returns, and the values the
+ingestion test asserts:
+
+| Counter key | Count |
 |---|---|
-| Ingested | 162,411 |
-| No `pinyin` field | 1,481 |
-| Parse failure | 10 |
-| Length mismatch | 14 |
-| PUA title | 2 |
+| `ingested` | 162,424 |
+| `skipped_no_pinyin` | 1,479 |
+| `erhua_rewritten` | 1,641 |
+| `tai_overlay` | 381 |
+| `failed_parse` | 6 |
+| `skipped_length_mismatch` | 5 |
+| `skipped_pua_title` | 4 |
 
-The 24 parse failures and length mismatches are all traceable to defects in the
-source data — `啐` given as `"q"`, `塞` as `"seī"`, two entries with unconverted
-bopomofo, and four transliterated names whose titles contain `．`.
+Resulting `pinyin_map` size: 174,621 keys.
 
-Counts are of *readings ingested*. Step 6 additionally re-registers 381 of them
-under their `台` spelling; those are not counted again.
+`skipped_pua_title` counts *entries*, skipped before their heteronyms are examined;
+every other key counts heteronyms. The eleven parse failures and length mismatches
+are all traceable to defects in the source data — `啐` given as `"q"`, `塞` as
+`"seī"`, two entries with unconverted bopomofo, `誒` as `"ề"`, and four titles
+containing `．` or a mid-sentence `，`.
+
+`ingested` counts readings. `tai_overlay` re-registers 381 of them under their `台`
+spelling and is reported separately rather than added to `ingested`.
 
 Build time is approximately 13 seconds.
 
@@ -252,7 +277,8 @@ Characters absent from the moedict map pass through unchanged, exactly as the
 existing non-Chinese passthrough in `conversion.solutions_array_for_word` does.
 
 The consequence is that simplified input silently half-converts, because many
-characters are shared between the scripts: `我们` yields `wǒ 们`. This is documented
+characters are shared between the scripts: `我们` yields `wǒ们` (no space — jieba keeps
+it as a single token, and the unmatched character renders inline). This is documented
 as the traditional-only contract of the moedict variant rather than guarded against.
 No error is raised and no fallback to the CC-CEDICT map occurs — a fallback would
 silently mix two sources' conventions in a single output.
@@ -345,8 +371,11 @@ That is the primary regression guard for this change.
 
 New tests:
 
-- **Erhua rewrite** — unit tests on the pattern, including the `èr` edge case that
-  the lookbehind protects, and `一會兒` end to end.
+- **Erhua rewrite** — unit tests covering both sides of the ambiguity: `èr chár`
+  (leading er-syllable preserved, trailing erhua split) and `zhèr`, `juér`, `yèr`
+  (erhua on an e-vowel syllable, which must still split). These are the cases a
+  lookbehind implementation gets wrong, so they are the tests that pin the design.
+  Plus `一會兒` end to end.
 - **Ingestion counts** — assert the returned `Counter` against the expected-yield
   table, guarding against silent source-format drift. Requires the source file, so
   it follows the existing `FULL_CEDICT_PARSING_TESTS` env-var pattern and skips by
@@ -355,7 +384,7 @@ New tests:
   of a non-default instance default, and `ValueError` on an unknown variant.
 - **Lazy loading** — the moedict pickle is not read when the variant is never used.
 - **Unknown-character passthrough** — `我们` under the moedict variant yields
-  `wǒ 们`.
+  `wǒ们`.
 - **Reading signature** — the `垃圾 / 企業 / 星期日 / 研究 / 喜歡 / 學生` set above, as
   the behavioural fingerprint of the variant.
 - **Orthographic overlay** — `台灣 台北 台中 電台 舞台 平台` are present as *headwords*, not
