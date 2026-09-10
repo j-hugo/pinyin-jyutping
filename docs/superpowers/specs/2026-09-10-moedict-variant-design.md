@@ -120,6 +120,45 @@ Rules, applied per heteronym in order:
 4. Skip when `len(clean_chinese(title)) != len(syllables)`.
 5. `process_word(chinese, syllables, data.pinyin_map)` — unchanged, so tokenized
    subwords and per-character entries are generated exactly as for CC-CEDICT.
+6. If the title contains `臺`, call `process_word` a second time with `臺` replaced
+   by `台`. See "Orthographic variants" below.
+
+### Orthographic variants: 臺 and 台
+
+moedict spells every compound with `臺` and never with `台`. Everyday Taiwanese
+writing overwhelmingly does the opposite. Without a fix, the most ordinary
+vocabulary in the variant's own target language misses at the word level:
+
+```
+台灣 台北 台中 台南 台東 電台 舞台 台幣 台語 台商 平台 後台 櫃台
+  → 13 of 13 absent from moedict as headwords
+  → 12 of 13 present under 臺
+```
+
+These still convert correctly today, because the per-character fallback finds
+`台 → tái`. But that is luck, not design: it holds only while `tái` stays the
+top-ranked reading of `台`, and it forfeits both word-level heteronym
+disambiguation and `conversion.improve_tokenization`, which tests `word in
+word_map` and so silently stops improving tokenization for every one of these
+words.
+
+Step 6 therefore registers the `台` spelling of every `臺` headword:
+
+```
+moedict headwords containing 臺: 380  (381 readings, one has two heteronyms)
+collisions with an existing 台 entry: 2  (天臺 / 天台 and 臺 / 台, identical readings)
+```
+
+Verified against a prototype build: 12 of the 13 words above become headwords. The
+holdout is `台東`, which moedict does not carry under either spelling — it has no
+`臺東` entry to overlay. That word continues to rely on per-character fallback, which
+renders it correctly.
+
+Only this one pair is handled. moedict holds the modern standard form of the other
+common 異體字 pairs — `裡 為 麵 群 峰 床 眾 抬 偽` — so no overlay is needed for them;
+input written with the archaic counterpart (`裏 爲 麪 羣 峯 牀 衆 擡 僞`) falls under
+the passthrough contract below. `臺/台` is the exception because it is the one pair
+where moedict's choice is the *less* common spelling in real use.
 
 ### Erhua rewrite
 
@@ -151,6 +190,9 @@ This recovers 1,632 of the 1,647 parse failures.
 The 24 parse failures and length mismatches are all traceable to defects in the
 source data — `啐` given as `"q"`, `塞` as `"seī"`, two entries with unconverted
 bopomofo, and four transliterated names whose titles contain `．`.
+
+Counts are of *readings ingested*. Step 6 additionally re-registers 381 of them
+under their `台` spelling; those are not counted again.
 
 Build time is approximately 13 seconds.
 
@@ -215,6 +257,11 @@ as the traditional-only contract of the moedict variant rather than guarded agai
 No error is raised and no fallback to the CC-CEDICT map occurs — a fallback would
 silently mix two sources' conventions in a single output.
 
+The same applies to archaic 異體字 that moedict does not carry (`裏 爲 麪 羣 峯 牀 衆
+擡 僞` and similar): they emit as raw hanzi. Around 23 of the 3,000 most frequent
+traditional characters fall into this category. CC-CEDICT carries both forms of each
+pair, so the default variant is unaffected.
+
 ### Tone sandhi
 
 moedict stores citation tones and does not encode sandhi: `一定` is `yī dìng`, `不對`
@@ -255,16 +302,21 @@ This is good enough that seeding occurrence counts from a frequency list is not
 worth introducing a second ranking mechanism. If the 4.6% figure at 3,000 proves
 troublesome in practice, that decision can be revisited independently.
 
-### Known artifact: simplified forms that collide with rare traditional characters
+### Out of contract: simplified forms that collide with rare traditional characters
 
 `么` and `万` are in common modern use as simplified forms of `麼` and `萬`, but each
 also exists as a distinct rare traditional character with its own reading. moedict,
 being a traditional dictionary, knows only the rare reading: `么 yāo` and
-`万 mò` (as in `万俟`). Under this variant they will convert that way.
+`万 mò` (as in `万俟`). Under this variant they convert that way.
 
-This is a direct consequence of the traditional-only contract rather than a ranking
-bug, and it is not worked around. It is called out here because it is the one class
-of difference that reads as an outright error rather than a dialect difference.
+These are **simplified characters, and therefore already outside this variant's
+traditional-only contract** — well-formed traditional input writes `麼` and `萬`.
+They are recorded here and pinned by test so the behaviour is a decision rather than
+an accident, but they are not special-cased. Adding an override list for input the
+variant does not claim to accept would invite indefinite additions.
+
+Note the contrast with `臺/台` above, which is *not* this class: `台` is legitimate
+traditional Taiwanese orthography and so must work by design rather than by luck.
 
 ### Expected differences from the default variant
 
@@ -306,8 +358,13 @@ New tests:
   `wǒ 们`.
 - **Reading signature** — the `垃圾 / 企業 / 星期日 / 研究 / 喜歡 / 學生` set above, as
   the behavioural fingerprint of the variant.
-- **Known artifact** — `么` and `万` convert as `yāo` and `mò`, pinned deliberately
-  so the behaviour is a recorded decision rather than an accident that later drifts.
+- **Orthographic overlay** — `台灣 台北 台中 電台 舞台 平台` are present as *headwords*, not
+  merely reachable via per-character fallback. Asserting map membership rather than
+  only the rendered output is the point: the rendered output was already correct
+  before the overlay existed, so an output-only test would pass without the feature.
+- **Out-of-contract artifact** — `么` and `万` convert as `yāo` and `mò`, pinned
+  deliberately so the behaviour is a recorded decision rather than an accident that
+  later drifts.
 - **Corrections** — a correction loaded for one variant does not affect the other.
 
 Tests that need `pinyin_moedict.pkl` skip when it is absent, so a checkout that has
