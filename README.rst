@@ -60,8 +60,29 @@ generate all possible solutions:
 >>> j.jyutping_all_solutions('我出去攞野食')
 {'word_list': ['我', '出去', '攞', '野食'], 'solutions': [['ngǒ'], ['cēothêoi'], ['ló', 'lō'], ['jěsik', 'jězi', 'jěsit', 'jězik']]}
 
+**Taiwan / moedict pinyin**
+
+Pinyin can be generated from the Taiwanese Ministry of Education dictionary instead of CC-CEDICT, which gives Taiwan-standard readings:
+
+>>> import pinyin_jyutping
+>>> p = pinyin_jyutping.PinyinJyutping(variant='moedict')
+>>> p.pinyin('垃圾分類')
+'lèsè fēnlèi'
+>>> p.pinyin('研究所學生')
+'yánjiùsuǒ xuéshēng'
+
+The variant can also be chosen per call:
+
+>>> p = pinyin_jyutping.PinyinJyutping()
+>>> p.pinyin('垃圾分類', variant='moedict')
+'lèsè fēnlèi'
+
+The ``moedict`` variant expects Traditional Chinese. Simplified characters are not in the dictionary and pass through unconverted.
+
 How it works
 ------------
 
 Uses the Jieba library (https://github.com/fxsjy/jieba) to tokenize the sentence. Then words are converted to Pinyin/Jyutping either as a whole, or character by character, using the CC-Canto dictionary (http://cantonese.org/about.html). The Jyutping diacritic conversion is not standard but originally described here: http://www.cantonese.sheik.co.uk/phorum/read.php?1,127274,129006
+
+Traditional Chinese can optionally be converted using the Taiwanese Ministry of Education's 重編國語辭典修訂本 instead, via the ``moedict`` variant. That data comes from https://github.com/g0v/moedict-data and is used under the Ministry's public licence; only pronunciations are used, not definitions.
 

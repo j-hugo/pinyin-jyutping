@@ -2,6 +2,9 @@ import logging
 import pprint
 import re
 import copy
+import collections
+import json
+import lzma
 
 from . import constants
 from . import syllables
@@ -282,4 +285,95 @@ def process_word(chinese, syllables, map, add_full_text=True, add_tokenized_word
             add_word_mapping(chinese_char, map, [syllable], priority)
 
 
-        
+# moedict parsing logic
+# =====================
+
+# tokens that are the syllable "er" in their own right. every other token ending
+# in 'r' is erhua, where moedict attaches the 兒 to the preceding syllable
+# (一會兒 -> 'yī huǐr'). note this must be decided per token: a lookbehind on the
+# preceding character cannot separate èr (the syllable) from zhèr (erhua).
+MOEDICT_ER_SYLLABLES = {'er', 'ēr', 'ér', 'ěr', 'èr'}
+
+
+def moedict_rewrite_erhua(pinyin):
+    tokens = []
+    for token in pinyin.split(' '):
+        if token.endswith('r') and token not in MOEDICT_ER_SYLLABLES:
+            logger.debug(f'moedict: splitting erhua token {token}')
+            tokens.append(token[:-1])
+            tokens.append('er5')
+        else:
+            tokens.append(token)
+    return ' '.join(tokens)
+
+
+# moedict marks characters with no Unicode encoding like {[8ff0]}
+MOEDICT_PUA_MARKER = '{['
+
+# moedict spells every compound with 臺, while everyday Taiwanese writing uses 台.
+# register both so that 台灣 / 台北 / 電台 resolve as words rather than falling back
+# to character-by-character conversion.
+MOEDICT_TAI_DICTIONARY = '臺'
+MOEDICT_TAI_COMMON = '台'
+
+
+def moedict_open(filepath):
+    if filepath.endswith('.xz'):
+        return lzma.open(filepath, 'rt', encoding='utf8')
+    return open(filepath, 'r', encoding='utf8')
+
+
+def parse_moedict(filepath, data):
+    counter = collections.Counter()
+    with moedict_open(filepath) as filehandle:
+        entries = json.load(filehandle)
+    logger.debug(f'moedict: loaded {len(entries)} entries from {filepath}')
+    for entry in entries:
+        title = entry['title']
+        if MOEDICT_PUA_MARKER in title:
+            logger.warning(f'moedict: skipping entry with unencodable title: {title}')
+            counter['skipped_pua_title'] += 1
+            continue
+        for heteronym in entry.get('heteronyms', []):
+            parse_moedict_heteronym(title, heteronym, data, counter)
+    logger.info(f'moedict: ingestion complete, {dict(counter)}')
+    return counter
+
+
+def parse_moedict_heteronym(title, heteronym, data, counter):
+    pinyin = heteronym.get('pinyin')
+    if not pinyin:
+        logger.warning(f'moedict: no pinyin for {title}, skipping')
+        counter['skipped_no_pinyin'] += 1
+        return
+
+    logger.debug(f'moedict: parsing {title} [{pinyin}]')
+    try:
+        syllables = parse_pinyin(pinyin)
+    except errors.PinyinSyllableNotFound:
+        rewritten = moedict_rewrite_erhua(pinyin)
+        logger.debug(f'moedict: retrying {title} with erhua rewrite [{rewritten}]')
+        try:
+            syllables = parse_pinyin(rewritten)
+        except errors.PinyinSyllableNotFound as e:
+            logger.error(f'moedict: could not parse {title} [{pinyin}]: {e}')
+            counter['failed_parse'] += 1
+            return
+        counter['erhua_rewritten'] += 1
+
+    chinese = clean_chinese(title)
+    if len(chinese) != len(syllables):
+        logger.warning(f'moedict: inconsistent lengths for {title} [{pinyin}], '
+                       f'{len(chinese)} characters and {len(syllables)} syllables, skipping')
+        counter['skipped_length_mismatch'] += 1
+        return
+
+    logger.debug(f'moedict: ingesting {chinese} as {syllables}')
+    process_word(chinese, syllables, data.pinyin_map)
+    counter['ingested'] += 1
+
+    if MOEDICT_TAI_DICTIONARY in chinese:
+        overlay = chinese.replace(MOEDICT_TAI_DICTIONARY, MOEDICT_TAI_COMMON)
+        logger.debug(f'moedict: registering 台 spelling {overlay} for {chinese}')
+        process_word(overlay, syllables, data.pinyin_map)
+        counter['tai_overlay'] += 1

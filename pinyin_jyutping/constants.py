@@ -1,6 +1,23 @@
 import enum
 
+VARIANT_CEDICT = 'cedict'
+VARIANT_MOEDICT = 'moedict'
+
 PICKLE_DATA_FILENAME='pinyin_jyutping.pkl'
+PICKLE_MOEDICT_DATA_FILENAME='pinyin_moedict.pkl'
+
+PICKLE_FILENAME_MAP = {
+    VARIANT_CEDICT: PICKLE_DATA_FILENAME,
+    VARIANT_MOEDICT: PICKLE_MOEDICT_DATA_FILENAME,
+}
+
+# pinned so that rebuilds are reproducible. bump deliberately, and re-run the
+# ingestion count test (FULL_MOEDICT_PARSING_TESTS=yes) when you do.
+MOEDICT_REPO_COMMIT = 'a6dc997417507eb510fc29822bc514de2c92728c'
+MOEDICT_SOURCE_FILENAME = 'dict-revised.json.xz'
+MOEDICT_SOURCE_URL = f'https://raw.githubusercontent.com/g0v/moedict-data/{MOEDICT_REPO_COMMIT}/{MOEDICT_SOURCE_FILENAME}'
+MOEDICT_CACHED_SOURCE_FILENAME = f'dict-revised.{MOEDICT_REPO_COMMIT[:8]}.json.xz'
+MOEDICT_TEMP_DATA_DIRECTORY = 'temp_data'
 
 # by default, we'll try to return all possible solutions. however the number of combinations
 # quickly explodes with long inputs. if we exceed this number of words, just return the most likely solution.
