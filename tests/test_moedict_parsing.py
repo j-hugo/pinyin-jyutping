@@ -1,10 +1,13 @@
 import unittest
 import sys
 import os
+import json
+import tempfile
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pinyin_jyutping.parser
+import pinyin_jyutping.data
 
 
 class MoedictErhuaTests(unittest.TestCase):
@@ -44,3 +47,59 @@ class MoedictErhuaTests(unittest.TestCase):
             pinyin_jyutping.parser.moedict_rewrite_erhua('yī huǐr '))
         self.assertEqual(len(syllables), 3)
         self.assertEqual(str(syllables[2]), 'er5')
+
+
+# one entry per ingestion branch, so the counter pins every code path
+MOEDICT_SAMPLE = [
+    {"title": "並時", "heteronyms": [{"pinyin": "bìng shí"}]},
+    {"title": "一會兒", "heteronyms": [{"pinyin": "yī huǐr "}]},
+    {"title": "二碴兒", "heteronyms": [{"pinyin": "èr chár "}]},
+    {"title": "臺灣", "heteronyms": [{"pinyin": "tái wān"}]},
+    {"title": "{[8ff0]}", "heteronyms": [{"pinyin": "zhuàng"}]},
+    {"title": "台", "heteronyms": [{"bopomofo": "ㄊㄞ"}]},
+    {"title": "啐", "heteronyms": [{"pinyin": "q"}]},
+    {"title": "哀嚎", "heteronyms": [{"pinyin": "āi "}]},
+]
+
+
+class MoedictIngestionTests(unittest.TestCase):
+    def ingest_sample(self):
+        data = pinyin_jyutping.data.Data()
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json',
+                                         encoding='utf8', delete=False) as f:
+            json.dump(MOEDICT_SAMPLE, f)
+            filepath = f.name
+        try:
+            counter = pinyin_jyutping.parser.parse_moedict(filepath, data)
+        finally:
+            os.unlink(filepath)
+        return data, counter
+
+    def test_counter_pins_every_branch(self):
+        data, counter = self.ingest_sample()
+        self.assertEqual(dict(counter), {
+            'ingested': 4,
+            'erhua_rewritten': 2,
+            'tai_overlay': 1,
+            'skipped_pua_title': 1,
+            'skipped_no_pinyin': 1,
+            'failed_parse': 1,
+            'skipped_length_mismatch': 1,
+        })
+
+    def test_ingests_plain_entry(self):
+        data, counter = self.ingest_sample()
+        self.assertIn('並時', data.pinyin_map)
+        self.assertEqual(str(data.pinyin_map['並時'][0].syllables[0]), 'bing4')
+
+    def test_registers_tai_overlay_spelling(self):
+        # moedict only ever writes 臺灣; everyday Taiwanese writing uses 台灣,
+        # so both must be headwords
+        data, counter = self.ingest_sample()
+        self.assertIn('臺灣', data.pinyin_map)
+        self.assertIn('台灣', data.pinyin_map)
+
+    def test_erhua_entry_ingested_with_correct_length(self):
+        data, counter = self.ingest_sample()
+        self.assertIn('一會兒', data.pinyin_map)
+        self.assertEqual(len(data.pinyin_map['一會兒'][0].syllables), 3)
