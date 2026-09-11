@@ -88,9 +88,10 @@ class MoedictFullSourceTests(unittest.TestCase):
         """guards against silent drift in the moedict source format.
         run: FULL_MOEDICT_PARSING_TESTS=yes pytest tests/test_moedict_conversion.py
         requires temp_data/dict-revised.json.xz, produced by tools/build_data.py"""
-        filepath = os.path.join(
+        filepath = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), '..',
             pinyin_jyutping.constants.MOEDICT_TEMP_DATA_DIRECTORY,
-            pinyin_jyutping.constants.MOEDICT_SOURCE_FILENAME)
+            pinyin_jyutping.constants.MOEDICT_CACHED_SOURCE_FILENAME))
         if not os.path.isfile(filepath):
             self.skipTest(f'{filepath} not present, run python tools/build_data.py')
         # the map size depends on how process_word tokenizes, so pin the

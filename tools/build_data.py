@@ -42,24 +42,16 @@ jieba.set_dictionary('pinyin_jyutping/dict.txt.big')
 def download_moedict_source():
     os.makedirs(pinyin_jyutping.constants.MOEDICT_TEMP_DATA_DIRECTORY, exist_ok=True)
     filepath = os.path.join(pinyin_jyutping.constants.MOEDICT_TEMP_DATA_DIRECTORY,
-                            pinyin_jyutping.constants.MOEDICT_SOURCE_FILENAME)
+                            pinyin_jyutping.constants.MOEDICT_CACHED_SOURCE_FILENAME)
     if os.path.isfile(filepath):
         logger.warning(f'{filepath} already present, skipping download')
         return filepath
     url = pinyin_jyutping.constants.MOEDICT_SOURCE_URL
     logger.warning(f'downloading {url} to {filepath}')
-    urllib.request.urlretrieve(url, filepath)
+    partial_filepath = filepath + '.part'
+    urllib.request.urlretrieve(url, partial_filepath)
+    os.replace(partial_filepath, filepath)
     return filepath
-
-moedict_data = pinyin_jyutping.data.Data()
-counter = pinyin_jyutping.parser.parse_moedict(download_moedict_source(), moedict_data)
-logger.warning(f'moedict ingestion: {dict(counter)}')
-
-moedict_pickle_file_path = f'pinyin_jyutping/{pinyin_jyutping.constants.PICKLE_MOEDICT_DATA_FILENAME}'
-moedict_file = open(moedict_pickle_file_path, 'wb')
-pickle.dump(moedict_data, moedict_file)
-moedict_file.close()
-logger.warning(f'wrote {moedict_pickle_file_path}')
 
 # write output
 # ============
@@ -70,3 +62,13 @@ pickle.dump(data, data_file)
 data_file.close()
 
 logger.info(f'wrote {pickle_file_path}')
+
+moedict_data = pinyin_jyutping.data.Data()
+counter = pinyin_jyutping.parser.parse_moedict(download_moedict_source(), moedict_data)
+logger.warning(f'moedict ingestion: {dict(counter)}')
+
+moedict_pickle_file_path = f'pinyin_jyutping/{pinyin_jyutping.constants.PICKLE_MOEDICT_DATA_FILENAME}'
+moedict_file = open(moedict_pickle_file_path, 'wb')
+pickle.dump(moedict_data, moedict_file)
+moedict_file.close()
+logger.warning(f'wrote {moedict_pickle_file_path}')

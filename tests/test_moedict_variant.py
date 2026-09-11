@@ -44,6 +44,11 @@ class VariantSelectionTests(unittest.TestCase):
         self.assertEqual(instance.pinyin('垃圾分類'), 'lèsè fēnlèi')
 
     @requires_moedict_pickle
+    def test_moedict_loaded_eagerly_when_constructor_variant(self):
+        instance = pinyin_jyutping.PinyinJyutping(variant='moedict')
+        self.assertIn(pinyin_jyutping.constants.VARIANT_MOEDICT, instance.data_map)
+
+    @requires_moedict_pickle
     def test_per_call_variant_overrides_default(self):
         instance = pinyin_jyutping.PinyinJyutping()
         self.assertEqual(instance.pinyin('垃圾分類'), 'lājī fēnlèi')

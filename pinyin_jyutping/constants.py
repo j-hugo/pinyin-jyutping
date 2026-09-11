@@ -16,6 +16,7 @@ PICKLE_FILENAME_MAP = {
 MOEDICT_REPO_COMMIT = 'a6dc997417507eb510fc29822bc514de2c92728c'
 MOEDICT_SOURCE_FILENAME = 'dict-revised.json.xz'
 MOEDICT_SOURCE_URL = f'https://raw.githubusercontent.com/g0v/moedict-data/{MOEDICT_REPO_COMMIT}/{MOEDICT_SOURCE_FILENAME}'
+MOEDICT_CACHED_SOURCE_FILENAME = f'dict-revised.{MOEDICT_REPO_COMMIT[:8]}.json.xz'
 MOEDICT_TEMP_DATA_DIRECTORY = 'temp_data'
 
 # by default, we'll try to return all possible solutions. however the number of combinations
