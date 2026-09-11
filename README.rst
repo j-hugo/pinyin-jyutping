@@ -79,6 +79,45 @@ The variant can also be chosen per call:
 
 The ``moedict`` variant expects Traditional Chinese. Simplified characters are not in the dictionary and pass through unconverted.
 
+Command line
+------------
+
+A ``pinyin-jyutping`` command converts columns of a CSV file, which is handy for Anki exports and other flashcard data. The file must have a header row, and each ``--column`` names an input column holding Chinese and an output column to write the transliteration to:
+
+.. code:: bash
+
+    $ pinyin-jyutping deck.csv deck_with_pinyin.csv --column chinese:pinyin
+
+The output column is overwritten if it already exists, and appended to the file otherwise. ``--column`` can be repeated to convert several columns in one pass:
+
+.. code:: bash
+
+    $ pinyin-jyutping deck.csv out.csv --column front:front_pinyin --column back:back_pinyin
+
+Use ``--inplace`` to write the result back to the input file instead of passing an output file:
+
+.. code:: bash
+
+    $ pinyin-jyutping deck.csv --inplace --column chinese:pinyin
+
+Other options:
+
+* ``--mode pinyin|jyutping`` chooses the conversion, applied to every column pair (default: ``pinyin``)
+* ``--variant cedict|moedict`` chooses the pinyin dictionary (default: ``cedict``); ``moedict`` holds no jyutping data
+* ``--tone-numbers`` outputs tone numbers instead of diacritics
+* ``--spaces`` puts a space between every syllable
+* ``--delimiter`` sets the field delimiter, and accepts ``\t`` for tab-separated files (default: ``,``)
+* ``--encoding`` sets the file encoding (default: ``utf-8``)
+
+For example, converting a tab-separated Anki export to Jyutping with tone numbers:
+
+.. code:: bash
+
+    $ pinyin-jyutping cantonese.txt out.txt --delimiter '\t' \
+        --mode jyutping --tone-numbers --column chinese:jyutping
+
+Empty cells are left empty. If a cell cannot be converted, the output cell is left blank and a warning naming the row is printed to stderr, so one bad row does not stop the run.
+
 How it works
 ------------
 

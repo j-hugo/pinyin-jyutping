@@ -21,6 +21,11 @@ setup(name='pinyin_jyutping',
       install_requires=[
           'jieba',
           'hanzidentifier'
-      ],      
+      ],
+      entry_points={
+          'console_scripts': [
+              'pinyin-jyutping=pinyin_jyutping.cli:main',
+          ],
+      },
       zip_safe=False,
       include_package_data=True)
