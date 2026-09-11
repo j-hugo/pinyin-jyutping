@@ -282,4 +282,23 @@ def process_word(chinese, syllables, map, add_full_text=True, add_tokenized_word
             add_word_mapping(chinese_char, map, [syllable], priority)
 
 
-        
+# moedict parsing logic
+# =====================
+
+# tokens that are the syllable "er" in their own right. every other token ending
+# in 'r' is erhua, where moedict attaches the 兒 to the preceding syllable
+# (一會兒 -> 'yī huǐr'). note this must be decided per token: a lookbehind on the
+# preceding character cannot separate èr (the syllable) from zhèr (erhua).
+MOEDICT_ER_SYLLABLES = {'er', 'ēr', 'ér', 'ěr', 'èr'}
+
+
+def moedict_rewrite_erhua(pinyin):
+    tokens = []
+    for token in pinyin.split(' '):
+        if token.endswith('r') and token not in MOEDICT_ER_SYLLABLES:
+            logger.debug(f'moedict: splitting erhua token {token}')
+            tokens.append(token[:-1])
+            tokens.append('er5')
+        else:
+            tokens.append(token)
+    return ' '.join(tokens)
