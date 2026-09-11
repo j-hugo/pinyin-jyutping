@@ -60,6 +60,25 @@ generate all possible solutions:
 >>> j.jyutping_all_solutions('我出去攞野食')
 {'word_list': ['我', '出去', '攞', '野食'], 'solutions': [['ngǒ'], ['cēothêoi'], ['ló', 'lō'], ['jěsik', 'jězi', 'jěsit', 'jězik']]}
 
+**Taiwan / moedict pinyin**
+
+Pinyin can be generated from the Taiwanese Ministry of Education dictionary instead of CC-CEDICT, which gives Taiwan-standard readings:
+
+>>> import pinyin_jyutping
+>>> p = pinyin_jyutping.PinyinJyutping(variant='moedict')
+>>> p.pinyin('垃圾分類')
+'lèsè fēnlèi'
+>>> p.pinyin('研究所學生')
+'yánjiùsuǒ xuéshēng'
+
+The variant can also be chosen per call:
+
+>>> p = pinyin_jyutping.PinyinJyutping()
+>>> p.pinyin('垃圾分類', variant='moedict')
+'lèsè fēnlèi'
+
+The ``moedict`` variant expects Traditional Chinese. Simplified characters are not in the dictionary and pass through unconverted.
+
 How it works
 ------------
 
