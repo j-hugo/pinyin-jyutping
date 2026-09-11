@@ -65,3 +65,5 @@ How it works
 
 Uses the Jieba library (https://github.com/fxsjy/jieba) to tokenize the sentence. Then words are converted to Pinyin/Jyutping either as a whole, or character by character, using the CC-Canto dictionary (http://cantonese.org/about.html). The Jyutping diacritic conversion is not standard but originally described here: http://www.cantonese.sheik.co.uk/phorum/read.php?1,127274,129006
 
+Traditional Chinese can optionally be converted using the Taiwanese Ministry of Education's 重編國語辭典修訂本 instead, via the ``moedict`` variant. That data comes from https://github.com/g0v/moedict-data and is used under the Ministry's public licence; only pronunciations are used, not definitions.
+

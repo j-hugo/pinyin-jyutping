@@ -1,2 +1,3 @@
 include pinyin_jyutping/dict.txt.big
 include pinyin_jyutping/pinyin_jyutping.pkl
+include pinyin_jyutping/pinyin_moedict.pkl
